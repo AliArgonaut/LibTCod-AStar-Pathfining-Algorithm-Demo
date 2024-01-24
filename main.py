@@ -1,44 +1,64 @@
-import os
-from  tcod import libtcodpy as libcod
+from  tcod import libtcodpy as tcod
+import tcod.tileset
+import actions
+from input_handlers import EventHandler
+from entity import Entity
+from engine import Engine
+from game_map import GameMap
+from procgen import generate_dungeon
+import copy 
+import entity_factories
 
-data_folder = 'data'
-font = os.path.join(data_folder, 'font.png')
-
-
-def main():
+def main() -> None:
     screen_width = 80
     screen_height = 50
 
-    player_x = int(screen_width / 2)
-    player_y = int(screen_height / 2)
+    map_width = 80
+    map_height = 45
 
-    libcod.console_set_custom_font(font, libcod.FONT_TYPE_GRAYSCALE | libcod.FONT_LAYOUT_TCOD)
-    libcod.console_init_root(screen_width, screen_height, "game", False)
-    con = libcod.console_new(screen_width, screen_height)
-    
-    key = libcod.Key()
-    mouse = libcod.Mouse()
+    room_max_size = 10
+    room_min_size = 6
+    max_rooms = 30
+    max_monsters_per_room = 2
 
-    while not libcod.console_is_window_closed():
+
+    tileset = tcod.tileset.load_tilesheet(
+        "font.png", 32, 8, tcod.tileset.CHARMAP_TCOD
+    )
+
+    event_handler = EventHandler()
+
+    player = copy.deepcopy(entity_factories.player)
+    game_map = generate_dungeon(
+        max_rooms = max_rooms,
+        room_min_size = room_min_size,
+        room_max_size = room_max_size,
+        map_width = map_width,
+        map_height = map_height,
+        max_monsters_per_room = max_monsters_per_room,
+        player = player,
+    )
+    engine = Engine(event_handler=event_handler, game_map=game_map, player=player)
+
+    with tcod.context.new_terminal(
+        screen_width,
+        screen_height,
+        tileset = tileset,
+        title = "roguelike",
+        vsync = True,
+    ) as context: 
+        root_console = tcod.console.Console(screen_width, 
+                                    screen_height, 
+                                    order="F")
         
-        libcod.sys_check_for_event(libcod.EVENT_KEY_PRESS, key, mouse)
-        libcod.console_set_default_foreground(con, libcod.white)
-        libcod.console_put_char(con, player_x, player_y, "@", libcod.BKGND_DEFAULT)
-        libcod.console_blit(con, 0, 0, screen_width, screen_height, 0, 0, 0)
-        libcod.console_flush()
+        while True:
 
-        libcod.console_put_char(con, player_x, player_y, " ", libcod.BKGND_NONE)
+            engine.render(console=root_console, context=context)
 
-        if key.vk == libcod.KEY_ESCAPE:
-            return True
-        if key.vk == libcod.KEY_UP:
-            player_y -= 1
-        elif key.vk == libcod.KEY_DOWN: 
-            player_y += 1
-        elif key.vk == libcod.KEY_LEFT: 
-            player_x -=1
-        elif key.vk == libcod.KEY_RIGHT: 
-           player_x += 1
+            events = tcod.event.wait()
 
-if __name__ == '__main__':
+            engine.handle_events(events)
+
+
+if __name__ == "__main__":
     main()
